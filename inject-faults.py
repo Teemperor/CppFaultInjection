@@ -60,21 +60,20 @@ def is_void_func(func):
     if not "type" in func.keys():
         return False
 
-    return "'void (" in str(func)
+    return "'void (" in str(func["type"])
 
 
 def is_int_func(func):
     if not "type" in func.keys():
         return False
 
-    return "'int (" in str(func)
-
+    return "'int (" in str(func["type"])
 
 def is_bool_func(func):
     if not "type" in func.keys():
         return False
 
-    return "'bool (" in str(func)
+    return "'bool (" in str(func["type"])
 
 def get_replace_data(node, parent, surrounding_func, in_loop):
     # Don't replace things from included files.
