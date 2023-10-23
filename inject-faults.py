@@ -82,6 +82,14 @@ def is_bool_func(func):
 
     return "'bool (" in str(func["type"])
 
+def can_make_stmt_conditional(stmt):
+    if not "kind" in stmt.keys():
+        return False
+    kind = stmt["kind"]
+
+    bad_kinds = ["DeclStmt", "ReturnStmt", "ForStmt", "WhileStmt", "CXXForRangeStmt"]
+    return not kind in bad_kinds
+
 def get_replace_data(node, parent, surrounding_func, in_loop):
     # Don't replace things from included files.
     if "loc" in node.keys():
@@ -107,6 +115,9 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
             result.append([ReplaceData.Prepend, node, "FAULT_RETURN_BOOL"])
         if in_loop:
             result.append([ReplaceData.Prepend, node, "FAULT_BREAK"])
+        if can_make_stmt_conditional(node):
+            result.append([ReplaceData.Prepend, node, "FAULT_CONDITIONAL"])
+
 
     if "kind" in node.keys():
         kind = node["kind"]
