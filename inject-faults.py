@@ -91,6 +91,8 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
             result.append([ReplaceData.Prepend, node, "FAULT_RETURN"])
         if is_int_func(surrounding_func):
             result.append([ReplaceData.Prepend, node, "FAULT_RETURN_INT"])
+        if in_loop:
+            result.append([ReplaceData.Prepend, node, "FAULT_BREAK"])
 
     if "kind" in node.keys():
         kind = node["kind"]
