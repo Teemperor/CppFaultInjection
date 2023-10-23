@@ -8,6 +8,12 @@ import glob
 import subprocess as sp
 from pathlib import Path
 
+parser = argparse.ArgumentParser(description='Performs fault injection')
+parser.add_argument('--rebuild', dest="rebuild", action='store', default=None)
+parser.add_argument('files', nargs='+')
+
+args = parser.parse_args()
+
 original_path = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
 
 def get_compilation_cmd(src_file):
@@ -18,7 +24,7 @@ def get_compilation_cmd(src_file):
         for info in j:
             file_path = info["file"]
             if os.path.abspath(file_path) == src_file:
-                print(info["command"])
+                # Add the include path to our fault header.
                 info["command"] += " -I " + original_path + "/include"
                 return info
     raise RuntimeError("Can't find compilation cmd for " + src_file)
@@ -38,34 +44,54 @@ def compile_file(info):
 
 class ReplaceData:
     Integer = 1
-    InsertBreak = 2
+    Prepend = 2
 
-def get_replace_data(node, surrounding_func, in_loop):
+def is_void_func(func):
+    if not "type" in func.keys():
+        return False
+
+    return "'void (" in str(func)
+
+def is_int_func(func):
+    if not "type" in func.keys():
+        return False
+
+    return "'int (" in str(func)
+
+def get_replace_data(node, parent, surrounding_func, in_loop):
+
     # Don't replace things from included files.
     if "loc" in node.keys():
         if 'includedFrom' in node["loc"].keys():
-            return None
+            return []
     if "range" in node.keys():
         begin_keys = node["range"]["begin"].keys()
         if 'expansionLoc' in begin_keys:
-            return None
+            return []
         if 'includedFrom' in begin_keys:
-            return None
+            return []
         if not "offset" in begin_keys:
-            return None
-        
+            return []
+    
+    result = []
+
+    if "kind" in parent.keys() and parent["kind"] == "CompoundStmt":
+        if is_void_func(surrounding_func):
+            result.append([ReplaceData.Prepend, node, "FAULT_RETURN"])
+        if is_int_func(surrounding_func):
+            result.append([ReplaceData.Prepend, node, "FAULT_RETURN_INT"])
+
     if "kind" in node.keys():
         kind = node["kind"]
         if kind == "IntegerLiteral":
-            return [ReplaceData.Integer, node]
-    return None
+            result.append([ReplaceData.Integer, node])
 
-def find_nodes_to_instrument(ast, surrounding_func = None, in_loop = False):
+    return result
+
+def find_nodes_to_instrument(ast, parent=None, surrounding_func=None, in_loop=False):
     result = []
 
-    replace_data = get_replace_data(ast, surrounding_func, in_loop)
-    if replace_data:
-        result.append(replace_data)
+    result += get_replace_data(ast, parent, surrounding_func, in_loop)
 
     if "kind" in ast.keys():
         if ast["kind"] in ["CXXMethodDecl", "FunctionDecl"]:
@@ -75,20 +101,24 @@ def find_nodes_to_instrument(ast, surrounding_func = None, in_loop = False):
 
     if 'inner' in ast.keys():
         for subnode in ast["inner"]:
-            result += find_nodes_to_instrument(subnode, surrounding_func, in_loop)
+            result += find_nodes_to_instrument(subnode, ast, surrounding_func, in_loop)
 
     return result
 
 def inject_macro_in_text(text, node_data):
+    node_kind = node_data[0]
     node = node_data[1]
     offset = node["range"]["begin"]["offset"]
-    offsetEnd = offset + node["range"]["begin"]["tokLen"]
 
     result = text[:offset]
-    result += "FAULT_INT("
-    result += text[offset:offsetEnd]
-    result += ")"
-    result += text[offsetEnd:]
+    if node_kind == ReplaceData.Integer:
+        offsetEnd = offset + node["range"]["begin"]["tokLen"]
+        result += "FAULT_INT("
+        result += text[offset:offsetEnd]
+        result += ")"
+        result += text[offsetEnd:]
+    elif node_kind == ReplaceData.Prepend:
+        result += node_data[2] + " " + text[offset:]
 
     return result
 
@@ -103,22 +133,26 @@ def inject_macro_in_file(src_file, node):
 
 def instrument_file(src_file):
     src_file = os.path.realpath(src_file)
-    print("Finding compilation args...")
+    print(" * Finding compilation args...")
     info = get_compilation_cmd(src_file)
-    print("Parsing AST...")
+    print(" * Parsing AST...")
     ast = get_ast(info)
 
     if not compile_file(info):
         print("Failed to compile initial file")
         sys.exit(1)
 
-    print("Finding nodes to replace...")
+    print(" * Finding nodes to replace...")
     nodes = find_nodes_to_instrument(ast)
 
     nodes.reverse()
 
     for node in nodes:
-        print(node[1])
+        node_str = str(node[1])
+        node_str = node_str[0:80] + " []...]"
+        print("  -> Replacing: " + node_str)
         inject_macro_in_file(src_file, node)
 
-instrument_file(sys.argv[1])
+for f in args.files:
+    print("Processing " + f)
+    instrument_file(f)
