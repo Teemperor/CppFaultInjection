@@ -8,15 +8,19 @@ import glob
 import subprocess as sp
 from pathlib import Path
 
+original_path = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
+
 def get_compilation_cmd(src_file):
     paths = glob.glob('compile_commands.json', recursive=True)
     for db in paths:
         f = open(db, "r")
         j = json.load(f)
-        for x in j:
-            file_path = x["file"]
+        for info in j:
+            file_path = info["file"]
             if os.path.abspath(file_path) == src_file:
-                return x
+                print(info["command"])
+                info["command"] += " -I " + original_path + "/include"
+                return info
     raise RuntimeError("Can't find compilation cmd for " + src_file)
 
 def get_ast(info):
@@ -42,7 +46,12 @@ def get_replace_data(node, surrounding_func, in_loop):
         if 'includedFrom' in node["loc"].keys():
             return None
     if "range" in node.keys():
-        if 'expansionLoc' in node["range"]["begin"].keys():
+        begin_keys = node["range"]["begin"].keys()
+        if 'expansionLoc' in begin_keys:
+            return None
+        if 'includedFrom' in begin_keys:
+            return None
+        if not "offset" in begin_keys:
             return None
         
     if "kind" in node.keys():
@@ -70,6 +79,28 @@ def find_nodes_to_instrument(ast, surrounding_func = None, in_loop = False):
 
     return result
 
+def inject_macro_in_text(text, node_data):
+    node = node_data[1]
+    offset = node["range"]["begin"]["offset"]
+    offsetEnd = offset + node["range"]["begin"]["tokLen"]
+
+    result = text[:offset]
+    result += "FAULT_INT("
+    result += text[offset:offsetEnd]
+    result += ")"
+    result += text[offsetEnd:]
+
+    return result
+
+def inject_macro_in_file(src_file, node):
+    with open(src_file, "r") as f:
+        content = f.read()
+    
+    content = inject_macro_in_text(content, node)
+
+    with open(src_file, "w") as f:
+        f.write(content)
+
 def instrument_file(src_file):
     src_file = os.path.realpath(src_file)
     print("Finding compilation args...")
@@ -84,7 +115,10 @@ def instrument_file(src_file):
     print("Finding nodes to replace...")
     nodes = find_nodes_to_instrument(ast)
 
-    for i in nodes:
-        print(i[1])
+    nodes.reverse()
+
+    for node in nodes:
+        print(node[1])
+        inject_macro_in_file(src_file, node)
 
 instrument_file(sys.argv[1])
