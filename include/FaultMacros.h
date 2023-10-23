@@ -1,6 +1,8 @@
 #pragma once
 
-#include <stdlib.h>
+extern "C" {
+char *getenv(const char *) noexcept(true);
+}
 
 namespace Faults {
 inline bool isActive(const char *BugName) { return getenv(BugName) != nullptr; }

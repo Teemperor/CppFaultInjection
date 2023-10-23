@@ -70,7 +70,7 @@ def is_int_func(func):
     if not "type" in func.keys():
         return False
 
-    types = ["int", "long"]
+    types = ["int", "long", "unsigned int", "unsigned long", "std::size_t", "size_t"]
     for type in types:
       if "'" + type + " (" in str(func["type"]):
           return True
