@@ -66,12 +66,13 @@ def is_void_func(func):
     return "'void (" in str(func["type"])
 
 
+int_types = ["int", "long", "unsigned int", "unsigned long", "std::size_t", "size_t"]
+
 def is_int_func(func):
     if not "type" in func.keys():
         return False
 
-    types = ["int", "long", "unsigned int", "unsigned long", "std::size_t", "size_t"]
-    for type in types:
+    for type in int_types:
       if "'" + type + " (" in str(func["type"]):
           return True
     return False
@@ -91,19 +92,21 @@ def can_make_stmt_conditional(stmt):
     return not kind in bad_kinds
 
 def get_replace_data(node, parent, surrounding_func, in_loop):
+    ignore_result = [[], True]
     # Don't replace things from included files.
     if "loc" in node.keys():
         if "includedFrom" in node["loc"].keys():
-            return []
+            return ignore_result
     if "range" in node.keys():
         begin_keys = node["range"]["begin"].keys()
         if "expansionLoc" in begin_keys:
-            return []
+            return ignore_result
         if "includedFrom" in begin_keys:
-            return []
+            return ignore_result
         if not "offset" in begin_keys:
-            return []
+            return ignore_result
 
+    should_descend = True
     result = []
 
     if "kind" in parent.keys() and parent["kind"] == "CompoundStmt":
@@ -121,16 +124,23 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
 
     if "kind" in node.keys():
         kind = node["kind"]
+        type = ""
+        if "type" in node.keys():
+            type = node["type"]["qualType"]
+        if kind == "BinaryOperator" and type in int_types:
+            should_descend = False
+            result.append([ReplaceData.Integer, node])
         if kind == "IntegerLiteral":
             result.append([ReplaceData.Integer, node])
 
-    return result
+    return [result, should_descend]
 
 
 def find_nodes_to_instrument(ast, parent=None, surrounding_func=None, in_loop=False):
     result = []
 
-    result += get_replace_data(ast, parent, surrounding_func, in_loop)
+    replacements_and_should_descend = get_replace_data(ast, parent, surrounding_func, in_loop)
+    result += replacements_and_should_descend[0]
 
     if "kind" in ast.keys():
         if ast["kind"] in ["CXXMethodDecl", "FunctionDecl"]:
@@ -138,7 +148,7 @@ def find_nodes_to_instrument(ast, parent=None, surrounding_func=None, in_loop=Fa
         if ast["kind"] in ["WhileStmt", "ForStmt", "CXXForRangeStmt"]:
             in_loop = True
 
-    if "inner" in ast.keys():
+    if "inner" in ast.keys() and replacements_and_should_descend[1]:
         for subnode in ast["inner"]:
             result += find_nodes_to_instrument(subnode, ast, surrounding_func, in_loop)
 
@@ -152,7 +162,7 @@ def inject_macro_in_text(text, node_data):
 
     result = text[:offset]
     if node_kind == ReplaceData.Integer:
-        offsetEnd = offset + node["range"]["begin"]["tokLen"]
+        offsetEnd = node["range"]["end"]["offset"] + node["range"]["end"]["tokLen"]
         result += "FAULT_INT("
         result += text[offset:offsetEnd]
         result += ")"
