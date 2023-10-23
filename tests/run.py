@@ -22,6 +22,7 @@ class COL:
 parser = argparse.ArgumentParser(description="Runs tests")
 parser.add_argument("--keep", dest="keep", action="store_true", default=None)
 parser.add_argument("--fix", dest="fix", action="store_true", default=None)
+parser.add_argument("--verbose", dest="verbose", action="store_true", default=None)
 parser.add_argument("files", nargs="*")
 
 args = parser.parse_args()
@@ -52,7 +53,10 @@ def run_test(name):
 """
         )
 
-    sp.run([fault_script, "input.cpp"], cwd=tmp_path)
+    extra_args = []
+    if args.verbose:
+        extra_args = ["--verbose"]
+    sp.run([fault_script, "input.cpp"] + extra_args, cwd=tmp_path)
 
     if args.fix:
         shutil.copy(tmp_path + "/input.cpp", name + "/expected.cpp")
@@ -70,11 +74,18 @@ if len(args.files) == 0:
         if os.path.isdir(x):
             args.files.append(x)
 
+failed = 0
 for x in args.files:
     print(COL.BOLD + "\n • Test " + x + COL.ENDC)
     try:
         run_test(x)
         print(COL.OKGREEN + " [ PASS ]" + COL.ENDC)
     except Exception as e:
+        failed += 1
         print(COL.FAIL + " [ FAIL ]" + COL.ENDC)
         print("Reason:" + str(e))
+
+if failed:
+    print(COL.FAIL + str(failed) + " tests failed!" + COL.ENDC)
+else:
+        print(COL.OKGREEN + "All tests passed" + COL.ENDC)

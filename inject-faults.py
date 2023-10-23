@@ -9,9 +9,12 @@ import subprocess as sp
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description="Performs fault injection")
+parser.add_argument("--verbose", dest="verbose", action="store_true", default=None)
 parser.add_argument("files", nargs="+")
 
 args = parser.parse_args()
+
+verbose = args.verbose
 
 original_path = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
 
@@ -67,7 +70,11 @@ def is_int_func(func):
     if not "type" in func.keys():
         return False
 
-    return "'int (" in str(func["type"])
+    types = ["int", "long"]
+    for type in types:
+      if "'" + type + " (" in str(func["type"]):
+          return True
+    return False
 
 def is_bool_func(func):
     if not "type" in func.keys():
@@ -168,6 +175,9 @@ def instrument_file(src_file):
     info = get_compilation_cmd(src_file)
     print(" * Parsing AST...")
     ast = get_ast(info)
+
+    if verbose:
+        print(json.dumps(ast, indent=2))
 
     if not compile_file(info):
         print("Failed to compile initial file")
