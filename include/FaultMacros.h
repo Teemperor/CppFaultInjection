@@ -26,7 +26,7 @@ inline bool isActive(const char *BugName) { return getenv(BugName) != nullptr; }
 
 #define FAULT_RETURN_INT FAULT_IF_IS_ACTIVE_SUFFIX(TRUE) return 0; 
 
-#define FAULT_CONDITIONAL FAULT_IF_IS_ACTIVE_SUFFIX(TRUE) return 0; 
+#define FAULT_CONDITIONAL FAULT_IF_IS_ACTIVE_SUFFIX(TRUE) 
 
 #define FAULT_RETURN_BOOL                                                      \
   FAULT_IF_IS_ACTIVE_SUFFIX(TRUE) return true;                                 \

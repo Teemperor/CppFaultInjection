@@ -46,7 +46,7 @@ def compile_file(info):
             cwd=info["directory"],
             shell=True,
             stdout=sp.PIPE,
-            stderr=sp.PIPE,
+            #stderr=sp.PIPE,
         )
         return True
     except Exception as e:
@@ -132,7 +132,6 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
         if "type" in node.keys():
             type = node["type"]["qualType"]
         if kind == "BinaryOperator" and type in int_types:
-            should_descend = False
             result.append([ReplaceData.Integer, node])
         if kind == "IntegerLiteral":
             result.append([ReplaceData.Integer, node])
@@ -159,38 +158,59 @@ def find_nodes_to_instrument(ast, parent=None, surrounding_func=None, in_loop=Fa
     return result
 
 
-def inject_macro_in_text(text, node_data):
-    node_kind = node_data[0]
-    node = node_data[1]
-    offset = node["range"]["begin"]["offset"]
 
-    result = text[:offset]
-    if node_kind == ReplaceData.Integer:
-        offsetEnd = node["range"]["end"]["offset"] + node["range"]["end"]["tokLen"]
-        result += "FAULT_INT("
-        result += text[offset:offsetEnd]
-        result += ")"
-        result += text[offsetEnd:]
-    elif node_kind == ReplaceData.Prepend:
-        result += node_data[2] + " " + text[offset:]
+class TextReplacer:
+    def __init__(self):
+        self.done_insertions = []
 
-    return result
+    def __adjust_offset(self, offset):
+        for adjustment in self.done_insertions:
+            if offset > adjustment[0]:
+                offset += adjustment[1]
+        return offset
+    
+    def insertedText(self, pos, size):
+        self.done_insertions.append([pos, size])
+
+    def inject_macro_in_text(self, text, node_data):
+        node_kind = node_data[0]
+        node = node_data[1]
+        offset = self.__adjust_offset(node["range"]["begin"]["offset"])
+
+        result = text[:offset]
+        if node_kind == ReplaceData.Integer:
+            offsetEnd = self.__adjust_offset(node["range"]["end"]["offset"] + node["range"]["end"]["tokLen"])
+            result += "FAULT_INT("
+            result += text[offset:offsetEnd]
+            result += ")"
+            result += text[offsetEnd:]
+            self.insertedText(offset, len("FAULT_INT("))
+            self.insertedText(offsetEnd, len(")"))
+
+        elif node_kind == ReplaceData.Prepend:
+            result += node_data[2] + " " + text[offset:]
+            self.insertedText(offset, len(node_data[2] + " "))
+
+        return result
 
 
-def inject_macro_in_file(src_file, node, compile_info):
-    with open(src_file, "r") as f:
-        original_content = f.read()
+    def inject_macro_in_file(self, src_file, node, compile_info):
+        with open(src_file, "r") as f:
+            original_content = f.read()
 
-    content = inject_macro_in_text(original_content, node)
+        prev_insertions = self.done_insertions[:]
 
-    with open(src_file, "w") as f:
-        f.write(content)
+        content = self.inject_macro_in_text(original_content, node)
 
-    if not compile_file(compile_info):
         with open(src_file, "w") as f:
-            f.write(original_content)
-        return False
-    return True
+            f.write(content)
+
+        if not compile_file(compile_info):
+            with open(src_file, "w") as f:
+                f.write(original_content)
+            self.done_insertions = prev_insertions
+            return False
+        return True
 
 
 
@@ -213,6 +233,8 @@ def instrument_file(src_file):
 
     nodes.reverse()
 
+    replacer = TextReplacer()
+
     total_len = len(nodes)
     current_i = 0
     for node in nodes:
@@ -220,7 +242,7 @@ def instrument_file(src_file):
         node_str = str(node[1])
         node_str = node_str[0:80] + " [...]"
         print("  -> Replacing: " + node_str + f" ({current_i}/{total_len})")
-        replaced = inject_macro_in_file(src_file, node, info)
+        replaced = replacer.inject_macro_in_file(src_file, node, info)
         if replaced:
             print("   ✅ Replaced node")
         else:
