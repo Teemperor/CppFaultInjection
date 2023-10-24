@@ -99,6 +99,14 @@ def can_make_stmt_conditional(stmt):
     bad_kinds = ["DeclStmt", "ReturnStmt", "ForStmt", "WhileStmt", "CXXForRangeStmt", "IfStmt"]
     return not kind in bad_kinds
 
+def is_valid_node(node):
+    if not "kind" in node.keys():
+        return False
+    kind = node["kind"]
+
+    bad_kinds = ["ParmVarDecl", "TemplateArgument"]
+    return not kind in bad_kinds
+
 def get_replace_data(node, parent, surrounding_func, in_loop):
     ignore_result = [[], True]
     # Don't replace things from included files.
@@ -122,7 +130,7 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
         if parent["kind"] == "CompoundStmt" or parent == surrounding_func:
             in_compound = True
 
-    if in_compound:
+    if in_compound and is_valid_node(node):
         if is_void_func(surrounding_func):
             result.append([ReplaceData.Prepend, node, "FAULT_RETURN"])
         if is_int_func(surrounding_func):
