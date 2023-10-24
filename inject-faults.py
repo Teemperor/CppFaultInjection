@@ -7,6 +7,8 @@ import argparse
 import glob
 import subprocess as sp
 from pathlib import Path
+from datetime import datetime
+
 
 parser = argparse.ArgumentParser(description="Performs fault injection")
 parser.add_argument("--verbose", dest="verbose", action="store_true", default=None)
@@ -247,10 +249,13 @@ def instrument_file(src_file):
     total_len = len(nodes)
     current_i = 0
     for node in nodes:
+        now = datetime.now()
+        current_time = now.strftime("%H:%M:%S")
+
         current_i += 1
         node_str = str(node[1])
         node_str = node_str[0:100] + " [...]"
-        print("  -> Replacing: " + str(node[0]) + " " + node_str + f" ({current_i}/{total_len})")
+        print("  -> Replacing: " + str(node[0]) + " " + node_str + f" ({current_i}/{total_len})  [{current_time}]")
         try:
             replaced = replacer.inject_macro_in_file(src_file, node, info)
             if replaced:
