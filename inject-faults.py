@@ -47,6 +47,7 @@ def compile_file(info):
             shell=True,
             stdout=sp.PIPE,
             stderr=sp.PIPE,
+            timeout=10
         )
         return True
     except Exception as e:
