@@ -93,7 +93,7 @@ def can_make_stmt_conditional(stmt):
         return False
     kind = stmt["kind"]
 
-    bad_kinds = ["DeclStmt", "ReturnStmt", "ForStmt", "WhileStmt", "CXXForRangeStmt"]
+    bad_kinds = ["DeclStmt", "ReturnStmt", "ForStmt", "WhileStmt", "CXXForRangeStmt", "IfStmt"]
     return not kind in bad_kinds
 
 def get_replace_data(node, parent, surrounding_func, in_loop):
