@@ -113,7 +113,12 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
     should_descend = True
     result = []
 
-    if "kind" in parent.keys() and parent["kind"] == "CompoundStmt":
+    in_compound = False
+    if "kind" in parent.keys():
+        if parent["kind"] == "CompoundStmt" or parent == surrounding_func:
+            in_compound = True
+
+    if in_compound:
         if is_void_func(surrounding_func):
             result.append([ReplaceData.Prepend, node, "FAULT_RETURN"])
         if is_int_func(surrounding_func):
@@ -134,6 +139,8 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
         if kind == "BinaryOperator" and type in int_types:
             result.append([ReplaceData.Integer, node])
         if kind == "IntegerLiteral":
+            result.append([ReplaceData.Integer, node])
+        if kind == "DeclRefExpr":
             result.append([ReplaceData.Integer, node])
 
     return [result, should_descend]
@@ -240,13 +247,16 @@ def instrument_file(src_file):
     for node in nodes:
         current_i += 1
         node_str = str(node[1])
-        node_str = node_str[0:80] + " [...]"
-        print("  -> Replacing: " + node_str + f" ({current_i}/{total_len})")
-        replaced = replacer.inject_macro_in_file(src_file, node, info)
-        if replaced:
-            print("   ✅ Replaced node")
-        else:
-            print("   ❌ Failed to replace node")
+        node_str = node_str[0:100] + " [...]"
+        print("  -> Replacing: " + str(node[0]) + " " + node_str + f" ({current_i}/{total_len})")
+        try:
+            replaced = replacer.inject_macro_in_file(src_file, node, info)
+            if replaced:
+                print("   ✅ Replaced node")
+            else:
+                print("   ❌ Failed to replace node")
+        except Exception as e:
+            print("   ❌ error: " + str(e))
 
 
 for f in args.files:
