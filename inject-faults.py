@@ -50,7 +50,8 @@ def compile_file(info):
         )
         return True
     except Exception as e:
-        print("Error when compiling:\n" + str(e))
+        if verbose:
+            print("Error when compiling:\n" + str(e))
         return False
 
 
