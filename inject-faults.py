@@ -28,7 +28,7 @@ def get_compilation_cmd(src_file):
             file_path = info["file"]
             if os.path.abspath(file_path) == src_file:
                 # Add the include path to our fault header.
-                info["command"] += " -I " + original_path + "/include"
+                info["command"] += " -I " + original_path + "/include -Werror"
                 return info
     raise RuntimeError("Can't find compilation cmd for " + src_file)
 
