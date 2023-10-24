@@ -140,7 +140,7 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
             result.append([ReplaceData.Integer, node])
         if kind == "IntegerLiteral":
             result.append([ReplaceData.Integer, node])
-        if kind == "DeclRefExpr":
+        if kind == "DeclRefExpr" and type in int_types:
             result.append([ReplaceData.Integer, node])
 
     return [result, should_descend]
