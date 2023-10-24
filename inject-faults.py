@@ -50,7 +50,7 @@ def compile_file(info):
         )
         return True
     except Exception as e:
-        print(e)
+        print("Error when compiling:\n" + str(e))
         return False
 
 
@@ -60,16 +60,20 @@ class ReplaceData:
 
 
 def is_void_func(func):
-    if not "type" in func.keys():
+    if func is None or not "type" in func.keys():
         return False
 
     return "'void (" in str(func["type"])
 
 
-int_types = ["int", "long", "unsigned int", "unsigned long", "std::size_t", "size_t"]
+int_types = ["int", "long", "unsigned int", "unsigned long", "size_t", "uint64_t", "int64_t", "int32_t", "uint32_t", "int16_t", "uint16_t"]
+for i in int_types[:]:
+    if i.endswith("_t"):
+        int_types.append("std::" + i)
+
 
 def is_int_func(func):
-    if not "type" in func.keys():
+    if func is None or not "type" in func.keys():
         return False
 
     for type in int_types:
@@ -78,7 +82,7 @@ def is_int_func(func):
     return False
 
 def is_bool_func(func):
-    if not "type" in func.keys():
+    if func is None or not "type" in func.keys():
         return False
 
     return "'bool (" in str(func["type"])
@@ -209,10 +213,13 @@ def instrument_file(src_file):
 
     nodes.reverse()
 
+    total_len = len(nodes)
+    current_i = 0
     for node in nodes:
+        current_i += 1
         node_str = str(node[1])
-        node_str = node_str[0:80] + " []...]"
-        print("  -> Replacing: " + node_str)
+        node_str = node_str[0:80] + " [...]"
+        print("  -> Replacing: " + node_str + f" ({current_i}/{total_len})")
         replaced = inject_macro_in_file(src_file, node, info)
         if replaced:
             print("   ✅ Replaced node")
