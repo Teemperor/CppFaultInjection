@@ -46,7 +46,7 @@ def compile_file(info):
             cwd=info["directory"],
             shell=True,
             stdout=sp.PIPE,
-            #stderr=sp.PIPE,
+            stderr=sp.PIPE,
         )
         return True
     except Exception as e:
