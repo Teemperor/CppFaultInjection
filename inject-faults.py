@@ -22,8 +22,9 @@ original_path = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
 
 
 def get_compilation_cmd(src_file):
-    paths = glob.glob("compile_commands.json", recursive=True)
+    paths = glob.glob("./**/compile_commands.json", recursive=True)
     for db in paths:
+        print("Searching " + db)
         f = open(db, "r")
         j = json.load(f)
         for info in j:
