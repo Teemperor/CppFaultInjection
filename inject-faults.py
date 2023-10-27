@@ -134,7 +134,7 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
         # this causes linker errors if there is no mutex support available.
         # i.e., static int x = FAULT(0); requires a mutex and this breaks
         # compilation.
-        if parent["kind"] == "VarDecl":
+        if surrounding_func and parent["kind"] == "VarDecl":
             if "storageClass" in parent.keys():
                 if parent["storageClass"] == "static":
                     should_descend = False
