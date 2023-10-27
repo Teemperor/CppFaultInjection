@@ -129,6 +129,15 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
     if "kind" in parent.keys():
         if parent["kind"] == "CompoundStmt" or parent == surrounding_func:
             in_compound = True
+        # As a special case, don't insert faults into static variables as
+        # this causes linker errors if there is no mutex support available.
+        # i.e., static int x = FAULT(0); requires a mutex and this breaks
+        # compilation.
+        if parent["kind"] == "VarDecl":
+            if "storageClass" in parent.keys():
+                if parent["storageClass"] == "static":
+                    should_descend = False
+                    return [result, should_descend]
 
     if in_compound and is_valid_node(node):
         if is_void_func(surrounding_func):
