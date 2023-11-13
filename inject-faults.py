@@ -22,6 +22,10 @@ original_path = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
 
 
 def get_compilation_cmd(src_file):
+    """
+    Returns an object with the compilation database object for the given
+    source file. See the compilation database spec for more information.
+    """
     paths = glob.glob("./**/compile_commands.json", recursive=True)
     for db in paths:
         print("Searching " + db)
@@ -37,12 +41,20 @@ def get_compilation_cmd(src_file):
 
 
 def get_ast(info):
+    """
+    Returns a JSON version of the parsed ASP for the given file.
+    """
     cmd = info["command"] + " -fno-color-diagnostics -Xclang -ast-dump=json "
     res = sp.run(cmd, cwd=info["directory"], shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
     return json.loads(res.stdout.decode("utf-8"))
 
 
 def compile_file(info):
+    """
+    Try compiling the file for the given compilation info
+    (see get_compilation_cmd)/
+    Returns true iff compilation was successful.
+    """
     try:
         sp.check_call(
             info["command"],
@@ -50,7 +62,7 @@ def compile_file(info):
             shell=True,
             stdout=sp.PIPE,
             stderr=sp.PIPE,
-            timeout=10
+            timeout=10,
         )
         return True
     except Exception as e:
@@ -60,7 +72,9 @@ def compile_file(info):
 
 
 class ReplaceData:
-    Integer = 1
+    # Surround the token with the specified macro.
+    Surround = 1
+    # Prepend the token with the specified arg-less C macro.
     Prepend = 2
 
 
@@ -71,7 +85,19 @@ def is_void_func(func):
     return "'void (" in str(func["type"])
 
 
-int_types = ["int", "long", "unsigned int", "unsigned long", "size_t", "uint64_t", "int64_t", "int32_t", "uint32_t", "int16_t", "uint16_t"]
+int_types = [
+    "int",
+    "long",
+    "unsigned int",
+    "unsigned long",
+    "size_t",
+    "uint64_t",
+    "int64_t",
+    "int32_t",
+    "uint32_t",
+    "int16_t",
+    "uint16_t",
+]
 for i in int_types[:]:
     if i.endswith("_t"):
         int_types.append("std::" + i)
@@ -82,9 +108,10 @@ def is_int_func(func):
         return False
 
     for type in int_types:
-      if "'" + type + " (" in str(func["type"]):
-          return True
+        if "'" + type + " (" in str(func["type"]):
+            return True
     return False
+
 
 def is_bool_func(func):
     if func is None or not "type" in func.keys():
@@ -92,13 +119,22 @@ def is_bool_func(func):
 
     return "'bool (" in str(func["type"])
 
+
 def can_make_stmt_conditional(stmt):
     if not "kind" in stmt.keys():
         return False
     kind = stmt["kind"]
 
-    bad_kinds = ["DeclStmt", "ReturnStmt", "ForStmt", "WhileStmt", "CXXForRangeStmt", "IfStmt"]
+    bad_kinds = [
+        "DeclStmt",
+        "ReturnStmt",
+        "ForStmt",
+        "WhileStmt",
+        "CXXForRangeStmt",
+        "IfStmt",
+    ]
     return not kind in bad_kinds
+
 
 def is_valid_node(node):
     if not "kind" in node.keys():
@@ -107,6 +143,7 @@ def is_valid_node(node):
 
     bad_kinds = ["ParmVarDecl", "TemplateArgument"]
     return not kind in bad_kinds
+
 
 def get_replace_data(node, parent, surrounding_func, in_loop):
     ignore_result = [[], True]
@@ -152,18 +189,17 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
         if can_make_stmt_conditional(node):
             result.append([ReplaceData.Prepend, node, "FAULT_CONDITIONAL"])
 
-
     if "kind" in node.keys():
         kind = node["kind"]
         type = ""
         if "type" in node.keys():
             type = node["type"]["qualType"]
         if kind == "BinaryOperator" and type in int_types:
-            result.append([ReplaceData.Integer, node])
+            result.append([ReplaceData.Surround, node, "FAULT_INT"])
         if kind == "IntegerLiteral":
-            result.append([ReplaceData.Integer, node])
+            result.append([ReplaceData.Surround, node, "FAULT_INT"])
         if kind == "DeclRefExpr" and type in int_types:
-            result.append([ReplaceData.Integer, node])
+            result.append([ReplaceData.Surround, node, "FAULT_INT"])
 
     return [result, should_descend]
 
@@ -171,7 +207,9 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
 def find_nodes_to_instrument(ast, parent=None, surrounding_func=None, in_loop=False):
     result = []
 
-    replacements_and_should_descend = get_replace_data(ast, parent, surrounding_func, in_loop)
+    replacements_and_should_descend = get_replace_data(
+        ast, parent, surrounding_func, in_loop
+    )
     result += replacements_and_should_descend[0]
 
     if "kind" in ast.keys():
@@ -187,7 +225,6 @@ def find_nodes_to_instrument(ast, parent=None, surrounding_func=None, in_loop=Fa
     return result
 
 
-
 class TextReplacer:
     def __init__(self):
         self.done_insertions = []
@@ -197,31 +234,33 @@ class TextReplacer:
             if offset > adjustment[0]:
                 offset += adjustment[1]
         return offset
-    
+
     def insertedText(self, pos, size):
         self.done_insertions.append([pos, size])
 
     def inject_macro_in_text(self, text, node_data):
         node_kind = node_data[0]
         node = node_data[1]
+        macro_name = node_data[2]
         offset = self.__adjust_offset(node["range"]["begin"]["offset"])
 
         result = text[:offset]
-        if node_kind == ReplaceData.Integer:
-            offsetEnd = self.__adjust_offset(node["range"]["end"]["offset"] + node["range"]["end"]["tokLen"])
-            result += "FAULT_INT("
+        if node_kind == ReplaceData.Surround:
+            offsetEnd = self.__adjust_offset(
+                node["range"]["end"]["offset"] + node["range"]["end"]["tokLen"]
+            )
+            result += macro_name + "("
             result += text[offset:offsetEnd]
             result += ")"
             result += text[offsetEnd:]
-            self.insertedText(offset, len("FAULT_INT("))
+            self.insertedText(offset, len(macro_name + "("))
             self.insertedText(offsetEnd, len(")"))
 
         elif node_kind == ReplaceData.Prepend:
-            result += node_data[2] + " " + text[offset:]
-            self.insertedText(offset, len(node_data[2] + " "))
+            result += macro_name + " " + text[offset:]
+            self.insertedText(offset, len(macro_name + " "))
 
         return result
-
 
     def inject_macro_in_file(self, src_file, node, compile_info):
         with open(src_file, "r") as f:
@@ -242,8 +281,10 @@ class TextReplacer:
         return True
 
 
-
 def instrument_file(src_file):
+    """
+    Instruments the given file with faults.
+    """
     src_file = os.path.realpath(src_file)
     print(" * Finding compilation args...")
     info = get_compilation_cmd(src_file)
@@ -273,7 +314,13 @@ def instrument_file(src_file):
         current_i += 1
         node_str = str(node[1])
         node_str = node_str[0:100] + " [...]"
-        print("  -> Replacing: " + str(node[0]) + " " + node_str + f" ({current_i}/{total_len})  [{current_time}]")
+        print(
+            "  -> Replacing: "
+            + str(node[0])
+            + " "
+            + node_str
+            + f" ({current_i}/{total_len})  [{current_time}]"
+        )
         try:
             replaced = replacer.inject_macro_in_file(src_file, node, info)
             if replaced:
