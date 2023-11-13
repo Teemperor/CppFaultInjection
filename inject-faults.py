@@ -12,9 +12,12 @@ from datetime import datetime
 
 parser = argparse.ArgumentParser(description="Performs fault injection")
 parser.add_argument("--verbose", dest="verbose", action="store_true", default=None)
+parser.add_argument("--build-dir", dest="build_dir", action="store", default=".")
 parser.add_argument("files", nargs="+")
 
 args = parser.parse_args()
+
+build_dir = args.build_dir
 
 verbose = args.verbose
 
@@ -26,7 +29,7 @@ def get_compilation_cmd(src_file):
     Returns an object with the compilation database object for the given
     source file. See the compilation database spec for more information.
     """
-    paths = glob.glob("./**/compile_commands.json", recursive=True)
+    paths = glob.glob(build_dir + "/**/compile_commands.json", recursive=True)
     for db in paths:
         print("Searching " + db)
         f = open(db, "r")
