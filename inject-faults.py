@@ -102,6 +102,10 @@ for i in int_types[:]:
     if i.endswith("_t"):
         int_types.append("std::" + i)
 
+bool_types = [
+    "bool",
+]
+
 
 def is_int_func(func):
     if func is None or not "type" in func.keys():
@@ -196,6 +200,8 @@ def get_replace_data(node, parent, surrounding_func, in_loop):
             type = node["type"]["qualType"]
         if kind == "BinaryOperator" and type in int_types:
             result.append([ReplaceData.Surround, node, "FAULT_INT"])
+        if kind == "BinaryOperator" and type in bool_types:
+            result.append([ReplaceData.Surround, node, "FAULT_BOOL"])
         if kind == "IntegerLiteral":
             result.append([ReplaceData.Surround, node, "FAULT_INT"])
         if kind == "DeclRefExpr" and type in int_types:

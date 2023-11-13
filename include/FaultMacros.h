@@ -49,5 +49,11 @@ inline bool isActive(const char *BugName) { return getenv(BugName) != nullptr; }
                                                  : ((TYPE)(NUM)))))
 #define FAULT_INT(NUM) ((decltype(NUM))FAULT_INT_IMPL(NUM, decltype(NUM)))
 
+#define FAULT_BOOL_IMPL(NUM, TYPE)                                             \
+  (FAULT_IS_ACTIVE_SUFFIX(FLIP_BOOL)                                           \
+       ? ((TYPE)(!(NUM)))                                                      \
+       : ((TYPE)(NUM)))
+#define FAULT_BOOL(NUM) ((decltype(NUM))FAULT_BOOL_IMPL(NUM, decltype(NUM)))
+
 #define FAULT_IF_COND                                                          \
   FAULT_IS_ACTIVE_SUFFIX(FORCE_ON) || !FAULT_IS_ACTIVE_SUFFIX(FORCE_OFF) &&
