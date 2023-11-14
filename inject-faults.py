@@ -58,20 +58,21 @@ def compile_file(info):
     (see get_compilation_cmd)/
     Returns true iff compilation was successful.
     """
-    try:
-        sp.check_call(
-            info["command"],
-            cwd=info["directory"],
-            shell=True,
-            stdout=sp.PIPE,
-            stderr=sp.PIPE,
-            timeout=10,
-        )
-        return True
-    except Exception as e:
+    result = sp.run(
+        info["command"],
+        cwd=info["directory"],
+        shell=True,
+        stdout=sp.PIPE,
+        stderr=sp.PIPE,
+        timeout=10,
+    )
+    if result.returncode != 0:
         if verbose:
-            print("Error when compiling:\n" + str(e))
+            print("Error when compiling:\n" + str(result))
+            print("stderr:")
+            print(result.stderr.decode("utf-8"))
         return False
+    return True
 
 
 class ReplaceData:
