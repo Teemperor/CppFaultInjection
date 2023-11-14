@@ -13,7 +13,7 @@ inline bool isActive(const char *BugName) { return getenv(BugName) != nullptr; }
 
 #define FAULT_GENERATE_UID                                                     \
   "INJECTED_FAULT_" __FILE_NAME__ "__LINE__" FAULT_STRINGIZE(                  \
-      __LINE__) "__REASON__" FAULT_STRINGIZE(__COUNTER__)
+      __LINE__) "__COUNTER__" FAULT_STRINGIZE(__COUNTER__) "__REASON__"
 
 #define FAULT_IF_IS_ACTIVE(SUFFIX)                                             \
   if (Faults::isActive(FAULT_GENERATE_UID "_" FAULT_STRINGIZE(SUFFIX)))
